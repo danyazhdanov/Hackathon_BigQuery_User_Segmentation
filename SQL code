@@ -1,0 +1,347 @@
+WITH
+  Status_Transactions_CRM AS (
+  SELECT
+    *,
+    ROW_NUMBER() OVER (PARTITION BY status_id) AS row_num,
+    (CASE
+        WHEN status_id = 'D' THEN 'Подтвержден. Заказываем товар'
+        WHEN status_id = 'E' THEN 'Подтверждён'
+        WHEN status_id = 'F' THEN 'Выполнен'
+        WHEN status_id = 'H' THEN 'Заказ в пункте самовывоза'
+        WHEN status_id = 'L' THEN 'Собран'
+        WHEN status_id = 'N' THEN 'Мы получили ваш заказ и сообщим, когда возьмём его в работу'
+        WHEN status_id = 'O' THEN 'В обработке'
+        WHEN status_id = 'R' THEN 'Отменён'
+        WHEN status_id = 'S' THEN 'Отправлен'
+        WHEN status_id = 'W' THEN 'Заказ в сортировочном центре'
+        WHEN status_id = 'Z' THEN 'Заказ едет в пункт выдачи'
+    END
+      ) AS Status_Description
+  FROM
+    `hackaton_new.crm_data` ),
+ 
+Users_Latest_Status AS  -- Список последних транзакций пользователей
+ 
+  (
+  SELECT
+    user_id,
+    MAX(order_date) AS Latest_CRM_Date,
+  FROM
+    Status_Transactions_CRM
+  GROUP BY
+    user_id
+  ORDER BY
+    user_id ),
+ 
+  Users_Latest_Status_Cancelled_Not_Unique AS -- Список пользователей, где последняя транзакция в CRM имела статус 'Отменён' (дубли)
+  (
+  SELECT
+    lat.user_id,
+    lat.Latest_CRM_Date,
+    crm.status_id,
+    sta.Status_Description
+  FROM
+    Users_Latest_Status AS lat
+  INNER JOIN `hackaton_new.crm_data` AS crm
+  ON lat.user_id = crm.user_id
+  INNER JOIN Status_Transactions_CRM AS sta
+  ON lat.user_id = sta.user_id
+  AND crm.status_id = sta.status_id
+  AND lat.Latest_CRM_Date = sta.order_date
+  WHERE crm.status_id = 'R'
+  ),
+ 
+  Users_Latest_Status_Cancelled AS -- Список пользователей, где последняя транзакция в CRM имела статус 'Отменён' 
+  (
+  SELECT
+    distinct *
+  FROM
+    Users_Latest_Status_Cancelled_Not_Unique 
+  ),
+ 
+  Users_Latest_Status_Confirmed_Not_Unique AS -- Список пользователей, где последняя транзакция в CRM имела статус 'Отменён' (дубли)
+  (
+  SELECT
+    lat.user_id,
+    lat.Latest_CRM_Date,
+    crm.status_id,
+    sta.Status_Description
+  FROM
+    Users_Latest_Status AS lat
+  INNER JOIN `hackaton_new.crm_data` AS crm
+  ON lat.user_id = crm.user_id
+  INNER JOIN Status_Transactions_CRM AS sta
+  ON lat.user_id = sta.user_id
+  AND crm.status_id = sta.status_id
+  AND lat.Latest_CRM_Date = sta.order_date
+  WHERE crm.status_id = 'F'
+  ),
+ 
+  Users_Latest_Status_Confirmed AS -- Список пользователей, где последняя транзакция в CRM имела статус 'Отменён' 
+  (
+  SELECT
+    distinct *
+  FROM
+    Users_Latest_Status_Confirmed_Not_Unique 
+  ),
+ 
+  Status_Count_per_User AS -- Кол-во транзакций по статусу на пользователя 
+  (
+  SELECT
+    sta.user_id,
+    sta.status_id,
+    sta.Status_Description,
+    COUNT(sta.order_date) AS Status_Count
+  FROM
+    Status_Transactions_CRM AS sta
+  GROUP BY
+    user_id,
+    status_id,
+    Status_Description  
+  ORDER BY
+    user_id,
+    status_id,
+    Status_Description ),
+ 
+  Users_Latest_Status_Not_Cancelled AS -- Список пользователей, где последняя транзакция в CRM не была 'Отменён' 
+  (
+  SELECT
+    lat.user_id,
+    lat.Latest_CRM_Date,
+    crm.status_id,
+    sta.Status_Description
+  FROM
+    Users_Latest_Status AS lat
+  INNER JOIN `hackaton_new.crm_data` AS crm
+  ON lat.user_id = crm.user_id
+  INNER JOIN Status_Transactions_CRM AS sta
+  ON lat.user_id = sta.user_id
+  AND crm.status_id = sta.status_id
+  AND lat.Latest_CRM_Date = sta.order_date
+  WHERE crm.status_id != 'R'
+  ORDER BY user_id ),
+    
+  Status_Count_per_User_Not_Cancelled AS -- Кол-во транзакций по статусу на пользователя(без отказников) 
+  (
+  SELECT
+    sta.user_id,
+    sta.status_id,
+    sta.Status_Description,
+    sta.Status_Count
+  FROM
+    Status_Count_per_User AS sta
+  INNER JOIN Users_Latest_Status_Not_Cancelled AS nt_can
+  ON nt_can.user_id = sta.user_id
+    AND nt_can.status_id = sta.status_id  
+  GROUP BY
+    user_id,
+    status_id,
+    Status_Description,
+    Status_Count    
+  ORDER BY
+    user_id,
+    status_id,
+    Status_Description ),
+    
+  Status_Grouped_per_Count AS -- Кол-во пользователей по кол-ву транзакций по статусу(без отказников)
+ 
+  (
+  SELECT
+    status_id,
+    Status_Description,
+    Status_Count,
+    COUNT(user_id) AS Num_Users
+  FROM
+    Status_Count_per_User_Not_Cancelled
+  GROUP BY
+    status_id,
+    Status_Description,
+    Status_Count    
+  ORDER BY
+    status_id,
+    Status_Description,
+    Status_Count ),
+    
+  Status_Confirmed_Count_per_User AS -- Кол-во транзакций по статусу 'Подтвержден' на пользователя(без отказников) 
+  (
+  SELECT
+    sta.user_id,
+    sta.status_id,
+    sta.Status_Description,
+    sta.Status_Count
+  FROM
+    Status_Count_per_User AS sta
+  INNER JOIN Users_Latest_Status_Not_Cancelled AS nt_can
+  ON nt_can.user_id = sta.user_id
+    AND nt_can.status_id = sta.status_id  
+  WHERE sta.status_id = 'F'      
+  ORDER BY
+    user_id,
+    status_id,
+    Status_Description 
+ ),
+    
+  Status_Confirmed_Grouped_per_Count AS -- Кол-во пользователей по кол-ву транзакций со статусом 'Подтвержден'(без отказников)
+ 
+  (
+  SELECT
+    status_id,
+    Status_Description,
+    Status_Count AS Num_Purchases,
+    COUNT(user_id) AS Num_Users
+  FROM
+    Status_Confirmed_Count_per_User
+  GROUP BY
+    Status_Count,
+    status_id,
+    Status_Description
+  HAVING status_id = 'F'      
+  ORDER BY
+    Status_Count,
+    status_id,
+    Status_Description ),
+    
+  Users_Latest_Status_Cancelled_Revenue_Not_Unique AS -- Отказники, их транзакции (дубли)
+ 
+  (
+  SELECT
+    can.user_id,
+    can.status_id,
+    can.Status_Description,
+    can.Latest_CRM_Date,
+    transaction_id,
+    order_date,
+    revenue,
+    platform,
+    platform,
+    discount,
+    delivery_type,
+    (CASE WHEN promo_code = '0' THEN 0
+      ELSE 1
+    END) AS Promo,
+    CAST(SUBSTR(CAST(CURRENT_DATETIME() AS string), 1, 10) AS Date) as now,
+    CAST(SUBSTR(CAST(Latest_CRM_Date AS string), 1, 10) AS Date) AS Latest_Transaction_Date,
+    CAST(SUBSTR(CAST(order_date AS string), 1, 10) AS Date) AS Transaction_Date,
+  FROM
+    Users_Latest_Status_Cancelled AS can
+  INNER JOIN `hackaton_new.crm_data` as crm
+  ON  can.user_id = crm.user_id
+  WHERE crm.status_id = 'F'     
+  ORDER BY
+    can.user_id,
+    can.status_id,
+    can.Status_Description ),
+ 
+Users_Latest_Status_Cancelled_Revenue AS    -- Отказники, их транзакции
+ 
+(
+SELECT
+  distinct *
+FROM
+  Users_Latest_Status_Cancelled_Revenue_Not_Unique
+),
+ 
+Cancelled_Average_Check AS    -- Отказники, какой был средний чек пользователя до последней транзакции с отказом, кол-во покупок
+ 
+(
+SELECT
+  user_id,
+  (CASE WHEN SUM(Promo) = 0 THEN 'NO'
+  ELSE 'YES'
+  END) AS Promo,
+  max(extract(day from now - Latest_CRM_Date)) AS days_after_cancelled,
+  SUM(cast(revenue as float64)) - SUM(cast(discount as float64)) AS revenue,                          --доход
+  COUNT(revenue) AS Num_Transactions,
+  SUM(cast(revenue as float64)) / COUNT(revenue) AS Average_Check    --ср. чек
+FROM  Users_Latest_Status_Cancelled_Revenue
+GROUP BY user_id
+ORDER BY Average_Check, user_id
+),
+ 
+Users_Latest_Status_Confirmed_Revenue_Not_Unique AS   -- Лояльные, их транзакции (дубли)
+ 
+  (
+  SELECT
+    can.user_id,
+    can.status_id,
+    can.Status_Description,
+    can.Latest_CRM_Date,
+    transaction_id,
+    order_date,
+    revenue,
+    platform,
+    platform,
+    discount,
+    delivery_type,
+    (CASE WHEN promo_code = '0' THEN 0
+      ELSE 1
+    END) AS Promo,
+    CAST(SUBSTR(CAST(CURRENT_DATETIME() AS string), 1, 10) AS Date) as now,
+    CAST(SUBSTR(CAST(Latest_CRM_Date AS string), 1, 10) AS Date) AS Latest_Transaction_Date,
+    CAST(SUBSTR(CAST(order_date AS string), 1, 10) AS Date) AS Transaction_Date,
+  FROM
+    Users_Latest_Status_Confirmed AS can
+  INNER JOIN `hackaton_new.crm_data` as crm
+  ON  can.user_id = crm.user_id
+  WHERE crm.status_id = 'F'     
+  ORDER BY
+    can.user_id,
+    can.status_id,
+    can.Status_Description ),
+ 
+Users_Latest_Status_Confirmed_Revenue AS    -- Лояльные, их транзакции
+ 
+(
+SELECT
+  distinct *
+FROM
+  Users_Latest_Status_Confirmed_Revenue_Not_Unique
+),
+ 
+Confirmed_Average_Check AS    -- Лояльные, какой был средний чек пользователя до последней транзакции с отказом, кол-во покупок
+ 
+(
+SELECT
+  user_id,
+  (CASE WHEN SUM(Promo) = 0 THEN 'NO'
+  ELSE 'YES'
+  END) AS Promo,
+  max(extract(day from now - Latest_CRM_Date)) AS days_after_last_transaction,
+  SUM(cast(revenue as float64)) AS revenue,          --доход
+  SUM(cast(discount as float64)) AS discount,        --скидки                  
+  COUNT(revenue) AS Num_Transactions,
+  SUM(cast(revenue as float64)) / COUNT(revenue) AS Average_Check    --ср. чек
+FROM  Users_Latest_Status_Confirmed_Revenue
+GROUP BY user_id
+ORDER BY Average_Check, user_id
+)
+ 
+SELECT * FROM Confirmed_Average_Check
+ 
+ 
+ 
+-- Ниже запросы к таблицам в зависимости от целей (
+ 
+--1) Кол-во Выполненных заказов
+SELECT * FROM Status_Confirmed_Grouped_per_Count -- Кол-во пользователей, сгруппированных по кол-ву транзакций со статусом 'Подтвержден' (без тех у кого последним был отказ)
+ 
+/*
+--2) Список отказников 
+ 
+SELECT * FROM  Cancelled_Average_Check -- список пользователей, где последняя транзакция статус “отказ», общий ревенью пользователя минус скидки, какой был средний чек у пользователя до транзакции с отказом, наличие промо-кода когда-либо, кол-во транзакций, кол-во дней после отказа
+--3) Список лояльных 
+ 
+SELECT * FROM  Cancelled_Average_Check -- список пользователей, где последняя транзакция статус “подтвержден», общий ревенью пользователя минус скидки, какой был средний чек у пользователя до транзакции с отказом, наличие промо-кода когда-либо, кол-во транзакций, кол-во дней после отказа
+ 
+--4)
+ 
+SELECT  * FROM  Status_Confirmed_Count_per_User  -- Пользователь, статус “Подтвержден”, число транзакций с этим статусом (без тех у кого последним был отказ)
+--5)
+ 
+SELECT * FROM  Status_Grouped_per_Count  -- Кол-во пользователей, сгруппированных по кол-ву транзакций по статусу(все возможные)  (без тех у кого последним был отказ)
+--6)
+ 
+SELECT * FROM  Status_Count_per_User_Not_Cancelled -- Пользователь, статус , число транзакций с этим статусом (без тех у кого последним был отказ)
+--7)
+ 
+SELECT * FROM Users_Latest_Status_Not_Cancelled -- Список пользователей, где последняя транзакция в CRM не была 'Отменён'
