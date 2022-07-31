@@ -4,23 +4,23 @@ WITH
     *,
     ROW_NUMBER() OVER (PARTITION BY status_id) AS row_num,
     (CASE
-        WHEN status_id = 'D' THEN 'Подтвержден. Заказываем товар'
-        WHEN status_id = 'E' THEN 'Подтверждён'
-        WHEN status_id = 'F' THEN 'Выполнен'
-        WHEN status_id = 'H' THEN 'Заказ в пункте самовывоза'
-        WHEN status_id = 'L' THEN 'Собран'
-        WHEN status_id = 'N' THEN 'Мы получили ваш заказ и сообщим, когда возьмём его в работу'
-        WHEN status_id = 'O' THEN 'В обработке'
-        WHEN status_id = 'R' THEN 'Отменён'
-        WHEN status_id = 'S' THEN 'Отправлен'
-        WHEN status_id = 'W' THEN 'Заказ в сортировочном центре'
-        WHEN status_id = 'Z' THEN 'Заказ едет в пункт выдачи'
+        WHEN status_id = 'D' THEN 'Confirmed. Ordering item'
+        WHEN status_id = 'E' THEN 'Confirmed'
+        WHEN status_id = 'F' THEN 'Completed'
+        WHEN status_id = 'H' THEN 'Order at the pick-up point'
+        WHEN status_id = 'L' THEN 'Assembled'
+        WHEN status_id = 'N' THEN 'Accepted'
+        WHEN status_id = 'O' THEN 'In Progress'
+        WHEN status_id = 'R' THEN 'Cancelled'
+        WHEN status_id = 'S' THEN 'Shipped'
+        WHEN status_id = 'W' THEN 'At the sorting center'
+        WHEN status_id = 'Z' THEN 'On the way to the pick-up point'
     END
       ) AS Status_Description
   FROM
     `hackaton_new.crm_data` ),
  
-Users_Latest_Status AS  -- Список последних транзакций пользователей
+Users_Latest_Status AS  -- List of users last orders
  
   (
   SELECT
@@ -33,7 +33,7 @@ Users_Latest_Status AS  -- Список последних транзакций 
   ORDER BY
     user_id ),
  
-  Users_Latest_Status_Cancelled_Not_Unique AS -- Список пользователей, где последняя транзакция в CRM имела статус 'Отменён' (дубли)
+  Users_Latest_Status_Cancelled_Not_Unique AS   -- List of users with last order status 'Cancelled' in CRM (with duplicates)
   (
   SELECT
     lat.user_id,
@@ -51,7 +51,7 @@ Users_Latest_Status AS  -- Список последних транзакций 
   WHERE crm.status_id = 'R'
   ),
  
-  Users_Latest_Status_Cancelled AS -- Список пользователей, где последняя транзакция в CRM имела статус 'Отменён' 
+  Users_Latest_Status_Cancelled AS   -- List of users with last order status 'Cancelled' in CRM (no duplicates)
   (
   SELECT
     distinct *
@@ -59,7 +59,7 @@ Users_Latest_Status AS  -- Список последних транзакций 
     Users_Latest_Status_Cancelled_Not_Unique 
   ),
  
-  Users_Latest_Status_Confirmed_Not_Unique AS -- Список пользователей, где последняя транзакция в CRM имела статус 'Отменён' (дубли)
+  Users_Latest_Status_Confirmed_Not_Unique AS   -- List of users with last order status 'Confirmed' in CRM (with duplicates)
   (
   SELECT
     lat.user_id,
@@ -77,7 +77,7 @@ Users_Latest_Status AS  -- Список последних транзакций 
   WHERE crm.status_id = 'F'
   ),
  
-  Users_Latest_Status_Confirmed AS -- Список пользователей, где последняя транзакция в CRM имела статус 'Отменён' 
+  Users_Latest_Status_Confirmed AS   -- List of users with last order status 'Confirmed' in CRM (no duplicates)
   (
   SELECT
     distinct *
@@ -85,7 +85,7 @@ Users_Latest_Status AS  -- Список последних транзакций 
     Users_Latest_Status_Confirmed_Not_Unique 
   ),
  
-  Status_Count_per_User AS -- Кол-во транзакций по статусу на пользователя 
+  Status_Count_per_User AS   -- Number of orders by status by user
   (
   SELECT
     sta.user_id,
@@ -103,7 +103,7 @@ Users_Latest_Status AS  -- Список последних транзакций 
     status_id,
     Status_Description ),
  
-  Users_Latest_Status_Not_Cancelled AS -- Список пользователей, где последняя транзакция в CRM не была 'Отменён' 
+  Users_Latest_Status_Not_Cancelled AS    -- List of users with last order status NOT 'Cancelled' in CRM (no duplicates)
   (
   SELECT
     lat.user_id,
@@ -121,7 +121,7 @@ Users_Latest_Status AS  -- Список последних транзакций 
   WHERE crm.status_id != 'R'
   ORDER BY user_id ),
     
-  Status_Count_per_User_Not_Cancelled AS -- Кол-во транзакций по статусу на пользователя(без отказников) 
+  Status_Count_per_User_Not_Cancelled AS    -- Number of orders by status by user (without cancelled) 
   (
   SELECT
     sta.user_id,
@@ -143,7 +143,7 @@ Users_Latest_Status AS  -- Список последних транзакций 
     status_id,
     Status_Description ),
     
-  Status_Grouped_per_Count AS -- Кол-во пользователей по кол-ву транзакций по статусу(без отказников)
+  Status_Grouped_per_Count AS   -- Number of orders grouped by status(without cancelled)
  
   (
   SELECT
@@ -162,7 +162,7 @@ Users_Latest_Status AS  -- Список последних транзакций 
     Status_Description,
     Status_Count ),
     
-  Status_Confirmed_Count_per_User AS -- Кол-во транзакций по статусу 'Подтвержден' на пользователя(без отказников) 
+  Status_Confirmed_Count_per_User AS    -- Number of orders with status 'Confirmed' by user (without cancelled)
   (
   SELECT
     sta.user_id,
@@ -181,7 +181,7 @@ Users_Latest_Status AS  -- Список последних транзакций 
     Status_Description 
  ),
     
-  Status_Confirmed_Grouped_per_Count AS -- Кол-во пользователей по кол-ву транзакций со статусом 'Подтвержден'(без отказников)
+  Status_Confirmed_Grouped_per_Count AS   -- Number of orders grouped with status 'Confirmed'(without cancelled)
  
   (
   SELECT
@@ -201,7 +201,7 @@ Users_Latest_Status AS  -- Список последних транзакций 
     status_id,
     Status_Description ),
     
-  Users_Latest_Status_Cancelled_Revenue_Not_Unique AS -- Отказники, их транзакции (дубли)
+  Users_Latest_Status_Cancelled_Revenue_Not_Unique AS    -- Users with last order Cancelled, their orders (duplicates)
  
   (
   SELECT
@@ -232,7 +232,7 @@ Users_Latest_Status AS  -- Список последних транзакций 
     can.status_id,
     can.Status_Description ),
  
-Users_Latest_Status_Cancelled_Revenue AS    -- Отказники, их транзакции
+Users_Latest_Status_Cancelled_Revenue AS    -- Users with last order Cancelled, their orders (no duplicates)
  
 (
 SELECT
@@ -241,7 +241,7 @@ FROM
   Users_Latest_Status_Cancelled_Revenue_Not_Unique
 ),
  
-Cancelled_Average_Check AS    -- Отказники, какой был средний чек пользователя до последней транзакции с отказом, кол-во покупок
+Cancelled_Average_Check AS    -- -- Users with last order Cancelled, Average check before last cancelled transaction, Purchase amount
  
 (
 SELECT
@@ -250,15 +250,15 @@ SELECT
   ELSE 'YES'
   END) AS Promo,
   max(extract(day from now - Latest_CRM_Date)) AS days_after_cancelled,
-  SUM(cast(revenue as float64)) - SUM(cast(discount as float64)) AS revenue,                          --доход
+  SUM(cast(revenue as float64)) - SUM(cast(discount as float64)) AS revenue,                          --revenue
   COUNT(revenue) AS Num_Transactions,
-  SUM(cast(revenue as float64)) / COUNT(revenue) AS Average_Check    --ср. чек
+  SUM(cast(revenue as float64)) / COUNT(revenue) AS Average_Check    -- Average check
 FROM  Users_Latest_Status_Cancelled_Revenue
 GROUP BY user_id
 ORDER BY Average_Check, user_id
 ),
  
-Users_Latest_Status_Confirmed_Revenue_Not_Unique AS   -- Лояльные, их транзакции (дубли)
+Users_Latest_Status_Confirmed_Revenue_Not_Unique AS    -- Loyal customers, their orders (duplicates)
  
   (
   SELECT
@@ -289,7 +289,7 @@ Users_Latest_Status_Confirmed_Revenue_Not_Unique AS   -- Лояльные, их 
     can.status_id,
     can.Status_Description ),
  
-Users_Latest_Status_Confirmed_Revenue AS    -- Лояльные, их транзакции
+Users_Latest_Status_Confirmed_Revenue AS    -- Loyal customers, their orders (no duplicates)
  
 (
 SELECT
@@ -298,7 +298,7 @@ FROM
   Users_Latest_Status_Confirmed_Revenue_Not_Unique
 ),
  
-Confirmed_Average_Check AS    -- Лояльные, какой был средний чек пользователя до последней транзакции с отказом, кол-во покупок
+Confirmed_Average_Check AS    -- Loyal customers, Average check before last cancelled transaction, Purchase amount
  
 (
 SELECT
@@ -307,10 +307,10 @@ SELECT
   ELSE 'YES'
   END) AS Promo,
   max(extract(day from now - Latest_CRM_Date)) AS days_after_last_transaction,
-  SUM(cast(revenue as float64)) AS revenue,          --доход
-  SUM(cast(discount as float64)) AS discount,        --скидки                  
+  SUM(cast(revenue as float64)) AS revenue,          -- Revenue
+  SUM(cast(discount as float64)) AS discount,        -- Discount cumulative                  
   COUNT(revenue) AS Num_Transactions,
-  SUM(cast(revenue as float64)) / COUNT(revenue) AS Average_Check    --ср. чек
+  SUM(cast(revenue as float64)) / COUNT(revenue) AS Average_Check    -- Average check
 FROM  Users_Latest_Status_Confirmed_Revenue
 GROUP BY user_id
 ORDER BY Average_Check, user_id
@@ -320,28 +320,35 @@ SELECT * FROM Confirmed_Average_Check
  
  
  
--- Ниже запросы к таблицам в зависимости от целей (
+-- Below are the queries to get the data:
  
---1) Кол-во Выполненных заказов
-SELECT * FROM Status_Confirmed_Grouped_per_Count -- Кол-во пользователей, сгруппированных по кол-ву транзакций со статусом 'Подтвержден' (без тех у кого последним был отказ)
+--1) Number of confirmed/completed orders
+
+SELECT * FROM Status_Confirmed_Grouped_per_Count -- Number of users, grouped by number of orders with status "Confirmed" (without users with last order "Cancelled")
  
 /*
---2) Список отказников 
+--2) List of customers with last order cancelled 
  
-SELECT * FROM  Cancelled_Average_Check -- список пользователей, где последняя транзакция статус “отказ», общий ревенью пользователя минус скидки, какой был средний чек у пользователя до транзакции с отказом, наличие промо-кода когда-либо, кол-во транзакций, кол-во дней после отказа
---3) Список лояльных 
+SELECT * FROM  Cancelled_Average_Check -- List of users with last order "Cancelled", Cumulative user revenue minus discounts,  Average check before last cancelled transaction, promo-code ever used or not, number of orders, number of days after cancelling
+
+--3) List of loyal customers 
  
-SELECT * FROM  Cancelled_Average_Check -- список пользователей, где последняя транзакция статус “подтвержден», общий ревенью пользователя минус скидки, какой был средний чек у пользователя до транзакции с отказом, наличие промо-кода когда-либо, кол-во транзакций, кол-во дней после отказа
+SELECT * FROM  Cancelled_Average_Check -- List of users with last order "Confirmed", Cumulative user revenue minus discounts, Average check before last transaction, promo-code ever used or not, number of orders, number of days after last transaction
  
---4)
+--4) List of users with number of orders with status "Confirmed"
  
-SELECT  * FROM  Status_Confirmed_Count_per_User  -- Пользователь, статус “Подтвержден”, число транзакций с этим статусом (без тех у кого последним был отказ)
---5)
+SELECT  * FROM  Status_Confirmed_Count_per_User  -- User, order status "Confirmed", number of orders with that order status (without users with last order "Cancelled")
+
+--5) Number of users, grouped by number of orders by order status (all possible)
  
-SELECT * FROM  Status_Grouped_per_Count  -- Кол-во пользователей, сгруппированных по кол-ву транзакций по статусу(все возможные)  (без тех у кого последним был отказ)
---6)
+SELECT * FROM  Status_Grouped_per_Count  -- Number of users, grouped by number of orders by order status (all possible)  (without users with last order "Cancelled")
+
+--6) List of users with number of orders by status 
  
-SELECT * FROM  Status_Count_per_User_Not_Cancelled -- Пользователь, статус , число транзакций с этим статусом (без тех у кого последним был отказ)
---7)
+SELECT * FROM  Status_Count_per_User_Not_Cancelled   -- User, order status, number of orders with that order status (without users with last order "Cancelled")
+
+--7)  List of Users with last order status NOT "Cancelled"
  
-SELECT * FROM Users_Latest_Status_Not_Cancelled -- Список пользователей, где последняя транзакция в CRM не была 'Отменён'
+SELECT * FROM Users_Latest_Status_Not_Cancelled 
+
+*/
